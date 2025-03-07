@@ -8,11 +8,17 @@ NC='\033[0m' # No Color
 
 echo -e "${BLUE}=== N8N with Neon PostgreSQL Setup ===${NC}"
 
-# Get project name
-read -p "Enter project name: " PROJECT_NAME
-if [ -z "$PROJECT_NAME" ]; then
-    echo "Project name cannot be empty. Exiting."
-    exit 1
+# Check if project name was provided as a command-line argument
+if [ -n "$1" ]; then
+    PROJECT_NAME="$1"
+    echo -e "Using provided project name: ${GREEN}$PROJECT_NAME${NC}"
+else
+    # Get project name if not provided as argument
+    read -p "Enter project name: " PROJECT_NAME
+    if [ -z "$PROJECT_NAME" ]; then
+        echo "Project name cannot be empty. Exiting."
+        exit 1
+    fi
 fi
 
 # Create directory with project name
@@ -38,35 +44,82 @@ if [ -z "$N8N_PASSWORD" ]; then
     N8N_PASSWORD="password123!"
 fi
 
-# Neon database info - prompt for host and password
+# Neon database info with menu options
 echo -e "\n${BLUE}Neon PostgreSQL Configuration:${NC}"
+echo -e "${YELLOW}Neon is a serverless PostgreSQL service that works well with n8n on a Google Cloud Run instance.${NC}"
+
+# DB Host
 read -p "Enter Neon DB host (e.g., ep-example-123456.us-east-2.aws.neon.tech): " NEON_DB_HOST
 if [ -z "$NEON_DB_HOST" ]; then
     echo "Neon DB host cannot be empty. Exiting."
     exit 1
 fi
 
-read -s -p "Enter Neon DB password: " NEON_DB_PASSWORD
+# DB Password
+read -p "Enter Neon DB password: " NEON_DB_PASSWORD
 echo ""
 if [ -z "$NEON_DB_PASSWORD" ]; then
     echo "Neon DB password cannot be empty. Exiting."
     exit 1
 fi
 
-# Use defaults for other DB settings but allow override
-read -p "Enter Neon DB name [neondb]: " NEON_DB_NAME_INPUT
-NEON_DB_NAME=${NEON_DB_NAME_INPUT:-neondb}
+# DB Name with options
+echo -e "\n${YELLOW}Database Name Options:${NC}"
+echo -e "This is the name of your PostgreSQL database in Neon."
+echo -e "1) neondb (Default database name)"
+echo -e "2) n8n (Specific to n8n application)"
+echo -e "3) Custom database name"
 
-read -p "Enter Neon DB user [neondb_owner]: " NEON_DB_USER_INPUT
-NEON_DB_USER=${NEON_DB_USER_INPUT:-neondb_owner}
+read -p "Select database name [1-3, default: 1]: " db_name_choice
+case $db_name_choice in
+    2) NEON_DB_NAME="n8n" ;;
+    3) read -p "Enter custom database name: " NEON_DB_NAME ;;
+    *) NEON_DB_NAME="neondb" ;;
+esac
+echo -e "Using database name: ${GREEN}$NEON_DB_NAME${NC}"
 
-read -p "Enter Neon DB schema [public]: " NEON_DB_SCHEMA_INPUT
-NEON_DB_SCHEMA=${NEON_DB_SCHEMA_INPUT:-public}
+# DB User with options
+echo -e "\n${YELLOW}Database User Options:${NC}"
+echo -e "This is the username for connecting to your PostgreSQL database."
+echo -e "1) neondb_owner (Default Neon database owner)"
+echo -e "2) n8n_user (Specific to n8n application)"
+echo -e "3) Custom database user"
+
+read -p "Select database user [1-3, default: 1]: " db_user_choice
+case $db_user_choice in
+    2) NEON_DB_USER="n8n_user" ;;
+    3) read -p "Enter custom database user: " NEON_DB_USER ;;
+    *) NEON_DB_USER="neondb_owner" ;;
+esac
+echo -e "Using database user: ${GREEN}$NEON_DB_USER${NC}"
+
+# DB Schema with options
+echo -e "\n${YELLOW}Database Schema Options:${NC}"
+echo -e "Schema separates database objects into logical groups. Most applications use the default 'public' schema."
+echo -e "1) public (Default schema)"
+echo -e "2) n8n (Dedicated schema for n8n)"
+echo -e "3) Custom schema name"
+
+read -p "Select database schema [1-3, default: 1]: " db_schema_choice
+case $db_schema_choice in
+    2) NEON_DB_SCHEMA="n8n" ;;
+    3) read -p "Enter custom schema name: " NEON_DB_SCHEMA ;;
+    *) NEON_DB_SCHEMA="public" ;;
+esac
+echo -e "Using database schema: ${GREEN}$NEON_DB_SCHEMA${NC}"
 
 # Ask if Firebase Admin should be included
 echo -e "\n${BLUE}Firebase Configuration:${NC}"
-read -p "Do you want to include Firebase Admin? (y/n): " INCLUDE_FIREBASE
-INCLUDE_FIREBASE=$(echo "$INCLUDE_FIREBASE" | tr '[:upper:]' '[:lower:]')
+echo -e "${YELLOW}Firebase Admin allows n8n to interact with Firebase services like Firestore, Authentication, and Cloud Messaging.${NC}"
+echo -e "1) Yes, include Firebase Admin"
+echo -e "2) No, skip Firebase Admin"
+
+read -p "Select Firebase option [1-2, default: 2]: " firebase_choice
+if [[ "$firebase_choice" == "1" ]]; then
+    INCLUDE_FIREBASE="y"
+else
+    INCLUDE_FIREBASE="n"
+fi
 
 # Firebase variables
 FIREBASE_PROJECT_ID=""

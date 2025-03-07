@@ -66,8 +66,8 @@ setup_project() {
             exit 1
         fi
         
-        # Run setup.sh to create the project files
-        ./setup.sh
+        # Run setup.sh with the project name as an argument
+        ./setup.sh "$PROJECT_NAME"
         
         # Check if project directory was created
         if [ ! -d "./$PROJECT_NAME" ]; then
@@ -148,30 +148,141 @@ initialize_gcp() {
     echo "Setting project to: $GCP_PROJECT"
     gcloud config set project "$GCP_PROJECT"
 
-    # Choose region
-    read -p "Enter GCP region [$GCP_REGION]: " input_region
-    GCP_REGION=${input_region:-$GCP_REGION}
+    # Choose region with numbered options
+    echo -e "\n${YELLOW}Available GCP regions:${NC}"
+    echo -e "1) us-central1 (Iowa) - Recommended for US workloads"
+    echo -e "2) us-east1 (South Carolina) - Good for US East Coast users"
+    echo -e "3) us-west1 (Oregon) - Good for US West Coast users"
+    echo -e "4) europe-west1 (Belgium) - Recommended for European workloads"
+    echo -e "5) asia-east1 (Taiwan) - Recommended for Asian workloads"
+    echo -e "6) Custom region"
+    
+    read -p "Select a region [1-6, default: 1]: " region_choice
+    case $region_choice in
+        2) GCP_REGION="us-east1" ;;
+        3) GCP_REGION="us-west1" ;;
+        4) GCP_REGION="europe-west1" ;;
+        5) GCP_REGION="asia-east1" ;;
+        6) read -p "Enter custom region: " GCP_REGION ;;
+        *) GCP_REGION="us-central1" ;;
+    esac
+    echo -e "Using region: ${GREEN}$GCP_REGION${NC}"
     
     # Set service name
+    echo -e "\n${YELLOW}Cloud Run Service Name:${NC}"
+    echo -e "This is the name of your deployed service in Cloud Run. It will be part of your URL."
     read -p "Enter Cloud Run service name [$SERVICE_NAME]: " input_service
     SERVICE_NAME=${input_service:-$SERVICE_NAME}
+    echo -e "Using service name: ${GREEN}$SERVICE_NAME${NC}"
     
-    # Configure resources
-    read -p "Enter max instances [$MAX_INSTANCES]: " input_max
-    MAX_INSTANCES=${input_max:-$MAX_INSTANCES}
+    # Configure CPU resources
+    echo -e "\n${YELLOW}CPU Options:${NC}"
+    echo -e "1) 1 CPU (Minimum recommended for n8n)"
+    echo -e "2) 2 CPUs (Better for workloads with multiple active workflows)"
+    echo -e "3) 4 CPUs (Best for heavy automation workloads)"
+    echo -e "4) Custom CPU value"
     
-    read -p "Enter min instances [$MIN_INSTANCES]: " input_min
-    MIN_INSTANCES=${input_min:-$MIN_INSTANCES}
+    read -p "Select CPU option [1-4, default: 1]: " cpu_choice
+    case $cpu_choice in
+        2) CPU=2 ;;
+        3) CPU=4 ;;
+        4) read -p "Enter custom CPU value: " CPU ;;
+        *) CPU=1 ;;
+    esac
+    echo -e "Using CPU: ${GREEN}$CPU${NC}"
     
-    read -p "Enter memory (e.g., 512Mi, 1Gi) [$MEMORY]: " input_memory
-    MEMORY=${input_memory:-$MEMORY}
+    # Configure memory resources
+    echo -e "\n${YELLOW}Memory Options:${NC}"
+    echo -e "1) 1Gi (Minimum recommended for n8n)"
+    echo -e "2) 2Gi (Better for workloads with multiple active workflows)"
+    echo -e "3) 4Gi (Best for heavy automation workloads)"
+    echo -e "4) Custom memory value"
     
-    read -p "Enter CPU count [$CPU]: " input_cpu
-    CPU=${input_cpu:-$CPU}
+    read -p "Select memory option [1-4, default: 1]: " memory_choice
+    case $memory_choice in
+        2) MEMORY="2Gi" ;;
+        3) MEMORY="4Gi" ;;
+        4) read -p "Enter custom memory value (e.g., 512Mi, 1Gi): " MEMORY ;;
+        *) MEMORY="1Gi" ;;
+    esac
+    echo -e "Using memory: ${GREEN}$MEMORY${NC}"
+    
+    # Configure max instances
+    echo -e "\n${YELLOW}Maximum Instance Options:${NC}"
+    echo -e "Maximum number of container instances allowed to handle traffic. Higher values allow better scaling but can increase costs."
+    echo -e "1) 1 instance (Minimal cost, no scalability)"
+    echo -e "2) 5 instances (Default, good balance of scalability and cost)"
+    echo -e "3) 10 instances (Better for high traffic scenarios)"
+    echo -e "4) Custom max instances"
+    
+    read -p "Select maximum instances [1-4, default: 2]: " max_choice
+    case $max_choice in
+        1) MAX_INSTANCES=1 ;;
+        3) MAX_INSTANCES=10 ;;
+        4) read -p "Enter custom max instances: " MAX_INSTANCES ;;
+        *) MAX_INSTANCES=5 ;;
+    esac
+    echo -e "Using maximum instances: ${GREEN}$MAX_INSTANCES${NC}"
+    
+    # Configure min instances
+    echo -e "\n${YELLOW}Minimum Instance Options:${NC}"
+    echo -e "Minimum number of instances to keep running. Higher values reduce cold starts but increase costs."
+    echo -e "1) 0 instances (Recommended for cost-sensitive deployments, will scale to zero when not in use)"
+    echo -e "2) 1 instance (No cold starts, continuous availability, higher cost)"
+    echo -e "3) Custom min instances"
+    
+    read -p "Select minimum instances [1-3, default: 1]: " min_choice
+    case $min_choice in
+        2) MIN_INSTANCES=1 ;;
+        3) read -p "Enter custom min instances: " MIN_INSTANCES ;;
+        *) MIN_INSTANCES=0 ;;
+    esac
+    echo -e "Using minimum instances: ${GREEN}$MIN_INSTANCES${NC}"
+    
+    # Configure request timeout
+    echo -e "\n${YELLOW}Request Timeout Options:${NC}"
+    echo -e "Maximum time a request can take before being terminated. Longer timeouts are needed for workflows that process large files or have many steps."
+    echo -e "1) 300s (5 minutes, default for most simple workflows)"
+    echo -e "2) 900s (15 minutes, recommended for complex workflows)"
+    echo -e "3) 1800s (30 minutes, for very complex workflows)"
+    echo -e "4) Custom timeout"
+    
+    read -p "Select request timeout [1-4, default: 2]: " timeout_choice
+    case $timeout_choice in
+        1) TIMEOUT="300s" ;;
+        3) TIMEOUT="1800s" ;;
+        4) read -p "Enter custom timeout in seconds (add 's' suffix): " TIMEOUT ;;
+        *) TIMEOUT="900s" ;;
+    esac
+    echo -e "Using request timeout: ${GREEN}$TIMEOUT${NC}"
+    
+    # Configure concurrency
+    echo -e "\n${YELLOW}Concurrency Options:${NC}"
+    echo -e "Maximum number of concurrent requests per container instance. Higher values allow more parallel workflows but require more resources."
+    echo -e "1) 40 (Conservative, good for resource-intensive workflows)"
+    echo -e "2) 80 (Default, balanced for most workloads)"
+    echo -e "3) 120 (Higher, good for many simple workflows)"
+    echo -e "4) Custom concurrency"
+    
+    read -p "Select concurrency level [1-4, default: 2]: " concurrency_choice
+    case $concurrency_choice in
+        1) CONCURRENCY=40 ;;
+        3) CONCURRENCY=120 ;;
+        4) read -p "Enter custom concurrency: " CONCURRENCY ;;
+        *) CONCURRENCY=80 ;;
+    esac
+    echo -e "Using concurrency: ${GREEN}$CONCURRENCY${NC}"
     
     # Get domain name (optional)
-    read -p "Enter your custom domain name for n8n (optional): " input_domain
+    echo -e "\n${YELLOW}Custom Domain (Optional):${NC}"
+    echo -e "If you have your own domain name, you can use it with your n8n deployment."
+    read -p "Enter your custom domain name for n8n (leave blank for none): " input_domain
     DOMAIN_NAME=${input_domain:-$DOMAIN_NAME}
+    if [ ! -z "$DOMAIN_NAME" ]; then
+        echo -e "Using custom domain: ${GREEN}$DOMAIN_NAME${NC}"
+    else
+        echo -e "No custom domain specified, will use default Cloud Run URL."
+    fi
 }
 
 # Enable required GCP APIs
