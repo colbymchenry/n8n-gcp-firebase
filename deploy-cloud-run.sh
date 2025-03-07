@@ -341,13 +341,20 @@ configure_env_vars() {
     
     # Cloud Run URL generation
     if [ -z "$DOMAIN_NAME" ]; then
+        # For Cloud Run, we'll use a placeholder and update it after deployment
+        # with the actual URL. Using a random hash to avoid collisions
         SERVICE_URL="https://$SERVICE_NAME-$(echo $RANDOM | md5sum | head -c 6)-$GCP_REGION.a.run.app"
     else
         SERVICE_URL="https://$DOMAIN_NAME"
     fi
+    
+    # Set webhook environment variables (critical for proper operation on Cloud Run)
     echo "N8N_HOST: \"${SERVICE_URL#https://}\"" >> $ENV_FILE
     echo "N8N_PROTOCOL: \"https\"" >> $ENV_FILE
-    echo "WEBHOOK_URL: \"$SERVICE_URL/\"" >> $ENV_FILE
+    echo "WEBHOOK_URL: \"$SERVICE_URL\"" >> $ENV_FILE
+    
+    # IMPORTANT: Prevent webhook deregistration on shutdown for serverless
+    echo "N8N_SKIP_WEBHOOK_DEREGISTRATION_SHUTDOWN: \"true\"" >> $ENV_FILE
     
     # Database configuration
     echo "DB_TYPE: \"postgresdb\"" >> $ENV_FILE
@@ -358,9 +365,6 @@ configure_env_vars() {
     echo "DB_POSTGRESDB_PASSWORD: \"$DB_POSTGRESDB_PASSWORD\"" >> $ENV_FILE
     echo "DB_POSTGRESDB_SCHEMA: \"$DB_POSTGRESDB_SCHEMA\"" >> $ENV_FILE
     echo "DB_POSTGRESDB_SSL_REJECT_UNAUTHORIZED: \"false\"" >> $ENV_FILE
-    
-    # Serverless-specific configuration
-    echo "N8N_SKIP_WEBHOOK_DEREGISTRATION_SHUTDOWN: \"true\"" >> $ENV_FILE
     
     # Generate encryption key if not provided
     if [ -z "$N8N_ENCRYPTION_KEY" ]; then
@@ -390,6 +394,7 @@ configure_env_vars() {
     fi
     
     echo -e "${GREEN}Environment variables configured in $ENV_FILE${NC}"
+    echo -e "${YELLOW}Note: Webhook URLs will be updated with actual Cloud Run URL after deployment${NC}"
 }
 
 # Function to create Dockerfile based on Firebase preference
@@ -553,7 +558,7 @@ deploy_to_cloud_run() {
         --execution-environment=gen1 \
         --no-cpu-throttling
     
-    # Get the service URL
+    # Get the actual service URL after deployment
     SERVICE_URL=$(gcloud run services describe $SERVICE_NAME --platform=managed --region=$GCP_REGION --format='value(status.url)')
     
     # Check if deployment was successful
@@ -563,13 +568,37 @@ deploy_to_cloud_run() {
         echo -e "Username: ${BLUE}$N8N_BASIC_AUTH_USER${NC}"
         echo -e "Password: ${BLUE}$N8N_BASIC_AUTH_PASSWORD${NC}"
         
+        # Update the webhook URLs with the actual Cloud Run URL
+        echo -e "${YELLOW}Updating webhook URLs with actual Cloud Run URL...${NC}"
+        gcloud run services update $SERVICE_NAME \
+            --region=$GCP_REGION \
+            --set-env-vars="WEBHOOK_URL=$SERVICE_URL,N8N_HOST=${SERVICE_URL#https://}"
+        
+        if [ $? -eq 0 ]; then
+            echo -e "${GREEN}Webhook URLs updated successfully!${NC}"
+        else
+            echo -e "${RED}Failed to update webhook URLs. Please update them manually:${NC}"
+            echo -e "gcloud run services update $SERVICE_NAME --region=$GCP_REGION --set-env-vars=\"WEBHOOK_URL=$SERVICE_URL,N8N_HOST=${SERVICE_URL#https://}\""
+        fi
+        
         if [ ! -z "$DOMAIN_NAME" ]; then
             echo -e "${YELLOW}Next Steps for Custom Domain:${NC}"
             echo -e "1. Map your domain to Cloud Run: ${BLUE}gcloud beta run domain-mappings create --service=$SERVICE_NAME --domain=$DOMAIN_NAME --region=$GCP_REGION${NC}"
             echo -e "2. Configure DNS records according to Cloud Run instructions"
         fi
         
-        echo -e "${YELLOW}IMPORTANT NOTE:${NC}"
+        echo -e "${YELLOW}IMPORTANT NOTES FOR WEBHOOKS:${NC}"
+        echo -e "1. Webhooks are configured with:"
+        echo -e "   - WEBHOOK_URL: ${BLUE}$SERVICE_URL${NC}"
+        echo -e "   - N8N_HOST: ${BLUE}${SERVICE_URL#https://}${NC}"
+        echo -e "   - N8N_PROTOCOL: https"
+        echo -e "   - N8N_SKIP_WEBHOOK_DEREGISTRATION_SHUTDOWN: true"
+        echo -e "2. After first login, recreate any webhook workflows to ensure proper registration"
+        echo -e "3. To test a webhook, use: ${BLUE}curl -X POST $SERVICE_URL/webhook/path-to-your-webhook${NC}"
+        echo -e "4. If webhooks don't work, check logs: ${BLUE}gcloud run logs read $SERVICE_NAME --region=$GCP_REGION${NC}"
+        echo -e "5. Verify webhook settings in n8n UI: Settings → Webhook URLs"
+        
+        echo -e "${YELLOW}ENCRYPTION KEY:${NC}"
         echo -e "For serverless n8n, your encryption key is: ${BLUE}$N8N_ENCRYPTION_KEY${NC}"
         echo -e "Save this key in a secure location. You will need it if you redeploy n8n to decrypt existing credentials."
     else
@@ -581,6 +610,47 @@ deploy_to_cloud_run() {
         echo -e "${YELLOW}Getting detailed deployment information...${NC}"
         gcloud run revisions list --service=$SERVICE_NAME --region=$GCP_REGION --format="table(name, active, status.conditions.status.list():label=Status, status.conditions.message.list():label=Message)"
     fi
+}
+
+# Verify and troubleshoot webhook setup
+verify_webhooks() {
+    echo -e "${BLUE}=== Webhook Verification Guide ===${NC}"
+    
+    # Get the service URL
+    SERVICE_URL=$(gcloud run services describe $SERVICE_NAME --platform=managed --region=$GCP_REGION --format='value(status.url)')
+    
+    echo -e "${YELLOW}To ensure webhooks work correctly with Cloud Run, follow these steps:${NC}"
+    echo -e "1. Verify environment variables are set correctly:"
+    echo -e "   Run: ${BLUE}gcloud run services describe $SERVICE_NAME --region=$GCP_REGION --format='value(spec.template.spec.containers[0].env)'${NC}"
+    echo -e "   Confirm you see these variables with correct values:"
+    echo -e "   - WEBHOOK_URL = $SERVICE_URL"
+    echo -e "   - N8N_HOST = ${SERVICE_URL#https://}"
+    echo -e "   - N8N_PROTOCOL = https"
+    echo -e "   - N8N_SKIP_WEBHOOK_DEREGISTRATION_SHUTDOWN = true"
+    
+    echo -e "\n2. If environment variables need to be updated, run:"
+    echo -e "   ${BLUE}gcloud run services update $SERVICE_NAME --region=$GCP_REGION \\${NC}"
+    echo -e "   ${BLUE}  --set-env-vars=\"WEBHOOK_URL=$SERVICE_URL,N8N_HOST=${SERVICE_URL#https://},N8N_PROTOCOL=https,N8N_SKIP_WEBHOOK_DEREGISTRATION_SHUTDOWN=true\"${NC}"
+    
+    echo -e "\n3. In n8n UI, create a simple webhook workflow:"
+    echo -e "   - Add a Webhook node as trigger (set to 'test-webhook')"
+    echo -e "   - Add a Set node to return a simple response"
+    echo -e "   - Deploy/activate the workflow"
+    
+    echo -e "\n4. Test the webhook using curl:"
+    echo -e "   ${BLUE}curl -X POST $SERVICE_URL/webhook/test-webhook${NC}"
+    
+    echo -e "\n5. If the webhook isn't working, check logs:"
+    echo -e "   ${BLUE}gcloud run logs read $SERVICE_NAME --region=$GCP_REGION --limit=50${NC}"
+    
+    echo -e "\n6. Common webhook issues on Cloud Run:"
+    echo -e "   - Incorrect URL in environment variables"
+    echo -e "   - Webhook deregistration on shutdown (fixed by N8N_SKIP_WEBHOOK_DEREGISTRATION_SHUTDOWN)"
+    echo -e "   - Cloud Run instance cold start timing issues"
+    echo -e "   - Permissions issues for the service account"
+
+    echo -e "\n${GREEN}Your deployed n8n instance should now handle webhooks correctly!${NC}"
+    echo -e "${YELLOW}If you continue to have issues, try setting MIN_INSTANCES=1 to prevent cold starts${NC}"
 }
 
 # Clean up temporary files
@@ -610,6 +680,7 @@ main() {
     create_dockerfile
     build_and_push_image
     deploy_to_cloud_run
+    verify_webhooks
     cleanup
     
     echo -e "${GREEN}=== Deployment Complete! ===${NC}"

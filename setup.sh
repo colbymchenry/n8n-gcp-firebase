@@ -383,3 +383,13 @@ else
 fi
 echo -e "Then access n8n at ${BLUE}http://localhost:5678${NC}"
 echo -e "Login with username: ${BLUE}$N8N_USER${NC} and your password"
+
+echo -e "\n${YELLOW}IMPORTANT NOTE FOR CLOUD RUN DEPLOYMENT:${NC}"
+echo -e "When deploying to Cloud Run using deploy-cloud-run.sh, webhook configuration"
+echo -e "will be handled automatically to ensure webhooks work properly in the serverless environment."
+echo -e "The deploy script will set the following critical environment variables:"
+echo -e "  - WEBHOOK_URL: The complete URL to your Cloud Run service"
+echo -e "  - N8N_HOST: The hostname of your Cloud Run service"
+echo -e "  - N8N_PROTOCOL: https (always use https with Cloud Run)"
+echo -e "  - N8N_SKIP_WEBHOOK_DEREGISTRATION_SHUTDOWN: Set to true to maintain webhooks during scaling"
+echo -e "After deploying to Cloud Run, you may need to recreate webhooks in the n8n UI."
