@@ -97,15 +97,15 @@ setup_project() {
         fi
         
         # Check for required files
-        if [ ! -f "$PROJECT_DIR/docker-compose.yml" ] || [ ! -f "$PROJECT_DIR/Dockerfile" ] || [ ! -f "$PROJECT_DIR/.env" ]; then
-            echo -e "${RED}Error: Required files (docker-compose.yml, Dockerfile, .env) not found in $PROJECT_DIR.${NC}"
+        if [ ! -f "$PROJECT_DIR/docker-compose.yml" ] || [ ! -f "$PROJECT_DIR/.env" ]; then
+            echo -e "${RED}Error: Required files (docker-compose.yml, .env) not found in $PROJECT_DIR.${NC}"
             exit 1
         fi
         
         # Extract project name from directory
         PROJECT_NAME=$(basename "$PROJECT_DIR")
         
-        # Determine if user is using Firebase
+        # Determine if user is using Firebase 
         if [ -f "$PROJECT_DIR/.env" ]; then
             grep -q "FIREBASE_PROJECT_ID" "$PROJECT_DIR/.env"
             if [ $? -eq 0 ]; then
@@ -120,6 +120,92 @@ setup_project() {
             grep -q "firebase-admin" "$PROJECT_DIR/Dockerfile"
             if [ $? -eq 0 ]; then
                 INCLUDE_FIREBASE="y"
+            fi
+        fi
+        
+        # If Firebase isn't enabled but there's a Firebase JSON file, ask if user wants to enable it
+        if [ "$INCLUDE_FIREBASE" != "y" ]; then
+            # Check for Firebase JSON files in the project directory
+            FIREBASE_JSON_FILES=$(find "$PROJECT_DIR" -name "*firebase-adminsdk*.json" -type f 2>/dev/null)
+            
+            if [ ! -z "$FIREBASE_JSON_FILES" ]; then
+                echo -e "\n${YELLOW}Firebase service account JSON file(s) found in your project directory.${NC}"
+                read -p "Would you like to enable Firebase integration? (y/n): " enable_firebase
+                
+                if [[ "$enable_firebase" == "y" ]]; then
+                    if [ $(echo "$FIREBASE_JSON_FILES" | wc -l) -gt 1 ]; then
+                        echo -e "${YELLOW}Multiple Firebase service account JSON files found:${NC}"
+                        i=1
+                        for file in $FIREBASE_JSON_FILES; do
+                            echo "$i) $(basename "$file")"
+                            i=$((i+1))
+                        done
+                        
+                        read -p "Select a file number [1-$((i-1))]: " file_num
+                        if [[ "$file_num" =~ ^[0-9]+$ ]] && [ "$file_num" -ge 1 ] && [ "$file_num" -le $((i-1)) ]; then
+                            SELECTED_FILE=$(echo "$FIREBASE_JSON_FILES" | sed -n "${file_num}p")
+                        else
+                            echo -e "${YELLOW}Invalid selection. Using the first file.${NC}"
+                            SELECTED_FILE=$(echo "$FIREBASE_JSON_FILES" | head -n 1)
+                        fi
+                    else
+                        SELECTED_FILE=$FIREBASE_JSON_FILES
+                    fi
+                    
+                    echo -e "${GREEN}Using Firebase configuration from: $(basename "$SELECTED_FILE")${NC}"
+                    
+                    # Extract Firebase credentials from JSON file
+                    if [ -f "$SELECTED_FILE" ]; then
+                        FIREBASE_PROJECT_ID=$(grep -o '"project_id": *"[^"]*"' "$SELECTED_FILE" | sed 's/"project_id": *"\([^"]*\)"/\1/')
+                        FIREBASE_PRIVATE_KEY_ID=$(grep -o '"private_key_id": *"[^"]*"' "$SELECTED_FILE" | sed 's/"private_key_id": *"\([^"]*\)"/\1/')
+                        FIREBASE_PRIVATE_KEY=$(grep -o '"private_key": *"[^"]*"' "$SELECTED_FILE" | sed 's/"private_key": *"//' | sed 's/"$//')
+                        # Ensure proper escaping for .env file
+                        FIREBASE_PRIVATE_KEY=$(echo "$FIREBASE_PRIVATE_KEY" | sed 's/\\n/\\\\n/g')
+                        FIREBASE_CLIENT_EMAIL=$(grep -o '"client_email": *"[^"]*"' "$SELECTED_FILE" | sed 's/"client_email": *"\([^"]*\)"/\1/')
+                        FIREBASE_CLIENT_ID=$(grep -o '"client_id": *"[^"]*"' "$SELECTED_FILE" | sed 's/"client_id": *"\([^"]*\)"/\1/')
+                        FIREBASE_CLIENT_X509_CERT_URL=$(grep -o '"client_x509_cert_url": *"[^"]*"' "$SELECTED_FILE" | sed 's/"client_x509_cert_url": *"\([^"]*\)"/\1/')
+                        
+                        if [ -z "$FIREBASE_PROJECT_ID" ] || [ -z "$FIREBASE_PRIVATE_KEY" ] || [ -z "$FIREBASE_CLIENT_EMAIL" ]; then
+                            echo -e "${RED}Could not extract all required fields from the JSON file.${NC}"
+                            echo -e "${RED}The file may be incomplete or have an unexpected format.${NC}"
+                            echo -e "${YELLOW}Continuing without Firebase integration.${NC}"
+                        else
+                            # Update .env file with Firebase credentials
+                            echo -e "${BLUE}Updating .env file with Firebase credentials...${NC}"
+                            
+                            # Check if Firebase section already exists in .env
+                            grep -q "FIREBASE_PROJECT_ID" "$PROJECT_DIR/.env"
+                            if [ $? -eq 0 ]; then
+                                # Replace existing Firebase credentials
+                                sed -i.bak '/FIREBASE_PROJECT_ID/d' "$PROJECT_DIR/.env"
+                                sed -i.bak '/FIREBASE_PRIVATE_KEY_ID/d' "$PROJECT_DIR/.env"
+                                sed -i.bak '/FIREBASE_PRIVATE_KEY/d' "$PROJECT_DIR/.env"
+                                sed -i.bak '/FIREBASE_CLIENT_EMAIL/d' "$PROJECT_DIR/.env"
+                                sed -i.bak '/FIREBASE_CLIENT_ID/d' "$PROJECT_DIR/.env"
+                                sed -i.bak '/FIREBASE_CLIENT_X509_CERT_URL/d' "$PROJECT_DIR/.env"
+                                rm -f "$PROJECT_DIR/.env.bak"
+                            fi
+                            
+                            # Add Firebase configuration to .env
+                            cat >> "$PROJECT_DIR/.env" << EOL
+
+# Firebase configuration
+FIREBASE_PROJECT_ID=$FIREBASE_PROJECT_ID
+FIREBASE_PRIVATE_KEY_ID=$FIREBASE_PRIVATE_KEY_ID
+FIREBASE_PRIVATE_KEY="$FIREBASE_PRIVATE_KEY"
+FIREBASE_CLIENT_EMAIL=$FIREBASE_CLIENT_EMAIL
+FIREBASE_CLIENT_ID=$FIREBASE_CLIENT_ID
+FIREBASE_CLIENT_X509_CERT_URL=$FIREBASE_CLIENT_X509_CERT_URL
+EOL
+                            
+                            INCLUDE_FIREBASE="y"
+                            echo -e "${GREEN}Firebase configuration updated successfully.${NC}"
+                        fi
+                    else
+                        echo -e "${RED}Selected file not found or not readable.${NC}"
+                        echo -e "${YELLOW}Continuing without Firebase integration.${NC}"
+                    fi
+                fi
             fi
         fi
     fi
@@ -400,16 +486,6 @@ configure_env_vars() {
 # Function to create Dockerfile based on Firebase preference
 create_dockerfile() {
     echo -e "${BLUE}=== Creating Dockerfile ===${NC}"
-    
-    # Check if Dockerfile already exists
-    if [ -f "./Dockerfile" ]; then
-        echo "Dockerfile already exists at: $(pwd)/Dockerfile"
-        read -p "Do you want to overwrite it? (y/n): " overwrite_dockerfile
-        if [[ "$overwrite_dockerfile" != "y" ]]; then
-            echo "Using existing Dockerfile."
-            return
-        fi
-    fi
     
     # Use Firebase preference from earlier setup
     # If INCLUDE_FIREBASE is empty (older project), ask the user

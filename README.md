@@ -229,17 +229,18 @@ This setup supports Firebase integration with n8n, allowing you to use Firebase 
 2. Generate a new private key for your service account:
    - Go to Project Settings > Service Accounts
    - Click "Generate New Private Key"
-   - Save the JSON file
+   - Save the JSON file to your project directory
 
-3. During the `setup.sh` script execution, select "Yes" when asked about Firebase integration
+3. During setup, the scripts will automatically:
+   - Detect Firebase service account JSON files (named *firebase-adminsdk*.json)
+   - Ask if you want to enable Firebase integration
+   - Extract all necessary credentials from the JSON file
+   - Configure your environment variables automatically
 
-4. Enter the Firebase credentials from your service account JSON:
-   - Project ID
-   - Private Key ID
-   - Private Key (formatted with \n for newlines)
-   - Client Email
-   - Client ID
-   - Client X509 Cert URL
+4. If no JSON file is found, you can either:
+   - Try again after adding the JSON file
+   - Enter the credentials manually
+   - Skip Firebase integration
 
 ### Using Firebase in n8n Workflows
 

@@ -4,6 +4,7 @@
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 YELLOW='\033[0;33m'
+RED='\033[0;31m'
 NC='\033[0m' # No Color
 
 echo -e "${BLUE}=== N8N with Neon PostgreSQL Setup ===${NC}"
@@ -111,63 +112,135 @@ echo -e "Using database schema: ${GREEN}$NEON_DB_SCHEMA${NC}"
 # Ask if Firebase Admin should be included
 echo -e "\n${BLUE}Firebase Configuration:${NC}"
 echo -e "${YELLOW}Firebase Admin allows n8n to interact with Firebase services like Firestore, Authentication, and Cloud Messaging.${NC}"
-echo -e "1) Yes, include Firebase Admin"
-echo -e "2) No, skip Firebase Admin"
 
-read -p "Select Firebase option [1-2, default: 2]: " firebase_choice
-if [[ "$firebase_choice" == "1" ]]; then
-    INCLUDE_FIREBASE="y"
-else
-    INCLUDE_FIREBASE="n"
-fi
-
-# Firebase variables
+# Initialize Firebase variables
 FIREBASE_PROJECT_ID=""
 FIREBASE_PRIVATE_KEY_ID=""
 FIREBASE_PRIVATE_KEY=""
 FIREBASE_CLIENT_EMAIL=""
 FIREBASE_CLIENT_ID=""
 FIREBASE_CLIENT_X509_CERT_URL=""
+INCLUDE_FIREBASE="n"
 
-if [ "$INCLUDE_FIREBASE" = "y" ]; then
-    echo -e "${YELLOW}Please enter Firebase credentials:${NC}"
+while true; do
+    echo -e "1) Yes, include Firebase Admin"
+    echo -e "2) No, skip Firebase Admin"
     
-    read -p "Firebase Project ID: " FIREBASE_PROJECT_ID
-    if [ -z "$FIREBASE_PROJECT_ID" ]; then
-        echo "Firebase Project ID cannot be empty. Using placeholder 'your-project-id'."
-        FIREBASE_PROJECT_ID="your-project-id"
-    fi
+    read -p "Select Firebase option [1-2, default: 2]: " firebase_choice
     
-    read -p "Firebase Private Key ID: " FIREBASE_PRIVATE_KEY_ID
-    if [ -z "$FIREBASE_PRIVATE_KEY_ID" ]; then
-        echo "Firebase Private Key ID cannot be empty. Using placeholder 'your-private-key-id'."
-        FIREBASE_PRIVATE_KEY_ID="your-private-key-id"
+    if [[ "$firebase_choice" == "1" ]]; then
+        # Check for Firebase service account JSON files
+        FIREBASE_JSON_FILES=$(find . -name "*firebase-adminsdk*.json" -type f 2>/dev/null)
+        
+        if [ -z "$FIREBASE_JSON_FILES" ]; then
+            echo -e "${RED}No Firebase service account JSON file found in this directory.${NC}"
+            echo -e "${RED}You need a Firebase service account JSON file to configure Firebase integration.${NC}"
+            echo -e "${YELLOW}Please download the service account JSON file from:${NC}"
+            echo -e "${YELLOW}Firebase Console > Project Settings > Service Accounts > Generate new private key${NC}"
+            echo -e "${YELLOW}Then place the file in this directory.${NC}"
+            echo -e ""
+            read -p "Do you want to try again (t), manually enter credentials (m), or skip Firebase (s)? [t/m/s]: " retry_choice
+            
+            if [[ "$retry_choice" == "s" ]]; then
+                INCLUDE_FIREBASE="n"
+                break
+            elif [[ "$retry_choice" == "m" ]]; then
+                # Manual credential entry
+                echo -e "${YELLOW}Please enter Firebase credentials:${NC}"
+                
+                read -p "Firebase Project ID: " FIREBASE_PROJECT_ID
+                if [ -z "$FIREBASE_PROJECT_ID" ]; then
+                    echo "Firebase Project ID cannot be empty. Using placeholder 'your-project-id'."
+                    FIREBASE_PROJECT_ID="your-project-id"
+                fi
+                
+                read -p "Firebase Private Key ID: " FIREBASE_PRIVATE_KEY_ID
+                if [ -z "$FIREBASE_PRIVATE_KEY_ID" ]; then
+                    echo "Firebase Private Key ID cannot be empty. Using placeholder 'your-private-key-id'."
+                    FIREBASE_PRIVATE_KEY_ID="your-private-key-id"
+                fi
+                
+                read -p "Firebase Private Key (formatted with newlines as \n): " FIREBASE_PRIVATE_KEY
+                if [ -z "$FIREBASE_PRIVATE_KEY" ]; then
+                    echo "Firebase Private Key cannot be empty. Using placeholder."
+                    FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nYour long private key here\n-----END PRIVATE KEY-----\n"
+                fi
+                
+                read -p "Firebase Client Email: " FIREBASE_CLIENT_EMAIL
+                if [ -z "$FIREBASE_CLIENT_EMAIL" ]; then
+                    echo "Firebase Client Email cannot be empty. Using placeholder 'your-client-email'."
+                    FIREBASE_CLIENT_EMAIL="your-client-email"
+                fi
+                
+                read -p "Firebase Client ID: " FIREBASE_CLIENT_ID
+                if [ -z "$FIREBASE_CLIENT_ID" ]; then
+                    echo "Firebase Client ID cannot be empty. Using placeholder 'your-client-id'."
+                    FIREBASE_CLIENT_ID="your-client-id"
+                fi
+                
+                read -p "Firebase Client X509 Cert URL: " FIREBASE_CLIENT_X509_CERT_URL
+                if [ -z "$FIREBASE_CLIENT_X509_CERT_URL" ]; then
+                    echo "Firebase Client X509 Cert URL cannot be empty. Using placeholder 'your-client-x509-cert-url'."
+                    FIREBASE_CLIENT_X509_CERT_URL="your-client-x509-cert-url"
+                fi
+                
+                INCLUDE_FIREBASE="y"
+                break
+            fi
+            # If "t" or any other input, the loop will continue
+        else
+            # If multiple files found, let user select one
+            if [ $(echo "$FIREBASE_JSON_FILES" | wc -l) -gt 1 ]; then
+                echo -e "${YELLOW}Multiple Firebase service account JSON files found:${NC}"
+                i=1
+                for file in $FIREBASE_JSON_FILES; do
+                    echo "$i) $(basename "$file")"
+                    i=$((i+1))
+                done
+                
+                read -p "Select a file number [1-$((i-1))]: " file_num
+                if [[ "$file_num" =~ ^[0-9]+$ ]] && [ "$file_num" -ge 1 ] && [ "$file_num" -le $((i-1)) ]; then
+                    SELECTED_FILE=$(echo "$FIREBASE_JSON_FILES" | sed -n "${file_num}p")
+                else
+                    echo -e "${YELLOW}Invalid selection. Using the first file.${NC}"
+                    SELECTED_FILE=$(echo "$FIREBASE_JSON_FILES" | head -n 1)
+                fi
+            else
+                SELECTED_FILE=$FIREBASE_JSON_FILES
+            fi
+            
+            echo -e "${GREEN}Using Firebase configuration from: $(basename "$SELECTED_FILE")${NC}"
+            
+            # Extract Firebase credentials from JSON file
+            if [ -f "$SELECTED_FILE" ]; then
+                # Use grep to extract values - simple but effective for most JSON files
+                FIREBASE_PROJECT_ID=$(grep -o '"project_id": *"[^"]*"' "$SELECTED_FILE" | sed 's/"project_id": *"\([^"]*\)"/\1/')
+                FIREBASE_PRIVATE_KEY_ID=$(grep -o '"private_key_id": *"[^"]*"' "$SELECTED_FILE" | sed 's/"private_key_id": *"\([^"]*\)"/\1/')
+                FIREBASE_PRIVATE_KEY=$(grep -o '"private_key": *"[^"]*"' "$SELECTED_FILE" | sed 's/"private_key": *"//' | sed 's/"$//')
+                # Ensure proper escaping for .env file
+                FIREBASE_PRIVATE_KEY=$(echo "$FIREBASE_PRIVATE_KEY" | sed 's/\\n/\\\\n/g')
+                FIREBASE_CLIENT_EMAIL=$(grep -o '"client_email": *"[^"]*"' "$SELECTED_FILE" | sed 's/"client_email": *"\([^"]*\)"/\1/')
+                FIREBASE_CLIENT_ID=$(grep -o '"client_id": *"[^"]*"' "$SELECTED_FILE" | sed 's/"client_id": *"\([^"]*\)"/\1/')
+                FIREBASE_CLIENT_X509_CERT_URL=$(grep -o '"client_x509_cert_url": *"[^"]*"' "$SELECTED_FILE" | sed 's/"client_x509_cert_url": *"\([^"]*\)"/\1/')
+                
+                if [ -z "$FIREBASE_PROJECT_ID" ] || [ -z "$FIREBASE_PRIVATE_KEY" ] || [ -z "$FIREBASE_CLIENT_EMAIL" ]; then
+                    echo -e "${RED}Could not extract all required fields from the JSON file.${NC}"
+                    echo -e "${RED}The file may be incomplete or have an unexpected format.${NC}"
+                    continue
+                fi
+                
+                INCLUDE_FIREBASE="y"
+                break
+            else
+                echo -e "${RED}Selected file not found or not readable.${NC}"
+                continue
+            fi
+        fi
+    else
+        INCLUDE_FIREBASE="n"
+        break
     fi
-    
-    read -p "Firebase Private Key (formatted with newlines as \n): " FIREBASE_PRIVATE_KEY
-    if [ -z "$FIREBASE_PRIVATE_KEY" ]; then
-        echo "Firebase Private Key cannot be empty. Using placeholder."
-        FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nYour long private key here\n-----END PRIVATE KEY-----\n"
-    fi
-    
-    read -p "Firebase Client Email: " FIREBASE_CLIENT_EMAIL
-    if [ -z "$FIREBASE_CLIENT_EMAIL" ]; then
-        echo "Firebase Client Email cannot be empty. Using placeholder 'your-client-email'."
-        FIREBASE_CLIENT_EMAIL="your-client-email"
-    fi
-    
-    read -p "Firebase Client ID: " FIREBASE_CLIENT_ID
-    if [ -z "$FIREBASE_CLIENT_ID" ]; then
-        echo "Firebase Client ID cannot be empty. Using placeholder 'your-client-id'."
-        FIREBASE_CLIENT_ID="your-client-id"
-    fi
-    
-    read -p "Firebase Client X509 Cert URL: " FIREBASE_CLIENT_X509_CERT_URL
-    if [ -z "$FIREBASE_CLIENT_X509_CERT_URL" ]; then
-        echo "Firebase Client X509 Cert URL cannot be empty. Using placeholder 'your-client-x509-cert-url'."
-        FIREBASE_CLIENT_X509_CERT_URL="your-client-x509-cert-url"
-    fi
-fi
+done
 
 # Create .env file with or without Firebase variables
 cat > "$PROJECT_DIR/.env" << EOL
