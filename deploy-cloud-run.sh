@@ -519,9 +519,7 @@ EOL
     if [[ "$INCLUDE_FIREBASE" = "y" ]]; then
         cat >> Dockerfile << EOL
 # Install firebase-admin
-# Install firebase-admin in the n8n modules directory
-WORKDIR /usr/local/lib/node_modules/n8n
-RUN npm install firebase-admin
+RUN npm install -g firebase-admin
 
 EOL
         

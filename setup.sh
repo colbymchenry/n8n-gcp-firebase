@@ -328,9 +328,8 @@ FROM n8nio/n8n:latest
 # Switch to root user to install packages
 USER root
 
-# Install firebase-admin in the n8n modules directory
-WORKDIR /usr/local/lib/node_modules/n8n
-RUN npm install firebase-admin
+# Install firebase-admin
+RUN npm install -g firebase-admin
 
 # Revert to the n8n user
 USER node
