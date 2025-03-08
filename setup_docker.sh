@@ -33,7 +33,7 @@ DB_NAME=$(echo "$SETUP_JSON" | grep -o '"neon_db_name": "[^"]*' | cut -d'"' -f4)
 DB_USER=$(echo "$SETUP_JSON" | grep -o '"neon_db_user": "[^"]*' | cut -d'"' -f4)
 DB_SCHEMA=$(echo "$SETUP_JSON" | grep -o '"neon_db_schema": "[^"]*' | cut -d'"' -f4)
 INSTALL_FIREBASE=$(echo "$SETUP_JSON" | grep -o '"firebase_admin_sdk": [^,}]*' | cut -d':' -f2 | tr -d ' "')
-FIREBASE_CREDENTIALS=$(echo "$SETUP_JSON" | grep -o '"firebase_credentials": "[^"]*' | cut -d'"' -f4)
+FIREBASE_CREDENTIALS=$(echo "$SETUP_JSON" | jq -c '.firebase_credentials')
 
 echo -e "\n${BLUE}=== Setting up Docker ===${NC}"
 

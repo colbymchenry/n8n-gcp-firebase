@@ -47,28 +47,33 @@ fi
 # Check if we should build locally or use Cloud Build
 read -p "Build image locally (l) or use Cloud Build (c)? (l/c): " build_choice
 
+# Change to the project directory
+cd "$PROJECT_NAME" || {
+  echo -e "${RED}Error: Could not change to directory $PROJECT_NAME${NC}"
+  exit 1
+}
+
+
 if [[ "$build_choice" == "l" ]]; then
     # Build locally
     echo "Building Docker image locally..."
-    docker build -t $IMAGE_NAME ./$PROJECT_NAME
+    docker build -t $IMAGE_NAME
     
     # Push to GCR
-    echo "Pushing image to Google Container Registry..."
     docker push $IMAGE_NAME
 else
     # Use Cloud Build
     echo "Building and pushing image using Cloud Build..."
     
     # Use explicit Dockerfile path with Cloud Build
-    echo "Running: gcloud builds submit --tag=$IMAGE_NAME --timeout=30m ./$PROJECT_NAME"
-    gcloud builds submit --tag=$IMAGE_NAME --timeout=30m ./$PROJECT_NAME
+    gcloud builds submit --tag=$IMAGE_NAME --timeout=30m
     
     # Check if the build was successful
     if [ $? -ne 0 ]; then
         echo -e "${YELLOW}Trying alternative build method with cloudbuild.yaml...${NC}"
         
         # Create a cloudbuild.yaml file for more explicit control
-        cat > ./$PROJECT_NAME/cloudbuild.yaml << EOL
+        cat > cloudbuild.yaml << EOL
 steps:
 - name: 'gcr.io/cloud-builders/docker'
 args: ['build', '-t', '$IMAGE_NAME', '.']
@@ -88,6 +93,9 @@ EOL
 fi
 
 echo -e "${GREEN}Image $IMAGE_NAME built and pushed to Google Container Registry${NC}"
+
+# Change back to the parent directory
+cd ..
 
 # Run the deploy_cloud_run script
 if [ -f "./deploy_cloud_run.sh" ]; then

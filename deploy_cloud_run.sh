@@ -113,10 +113,10 @@ echo "DB_POSTGRESDB_SSL_REJECT_UNAUTHORIZED: \"false\"" >> $ENV_FILE
 
 # Firebase configuration
 INSTALL_FIREBASE=$(echo "$SETUP_JSON" | grep -o '"firebase_admin_sdk": [^,}]*' | cut -d':' -f2 | tr -d ' "')
-FIREBASE_CREDENTIALS=$(echo "$SETUP_JSON" | grep -o '"firebase_credentials": "[^"]*' | cut -d'"' -f4)
+FIREBASE_CREDENTIALS=$(echo "$SETUP_JSON" | jq -c '.firebase_credentials')
 
 if [ "$INSTALL_FIREBASE" = "true" ]; then
-    echo "FIREBASE_CREDENTIALS: \"$FIREBASE_CREDENTIALS\"" >> $ENV_FILE
+    echo "FIREBASE_CREDENTIALS: $FIREBASE_CREDENTIALS" >> $ENV_FILE
 fi
 
 # Generate encryption key if not provided
