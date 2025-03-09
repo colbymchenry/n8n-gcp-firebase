@@ -34,6 +34,7 @@ DB_USER=$(echo "$SETUP_JSON" | grep -o '"neon_db_user": "[^"]*' | cut -d'"' -f4)
 DB_SCHEMA=$(echo "$SETUP_JSON" | grep -o '"neon_db_schema": "[^"]*' | cut -d'"' -f4)
 INSTALL_FIREBASE=$(echo "$SETUP_JSON" | grep -o '"firebase_admin_sdk": [^,}]*' | cut -d':' -f2 | tr -d ' "')
 FIREBASE_CREDENTIALS=$(echo "$SETUP_JSON" | jq -c '.firebase_credentials')
+EXTERNAL_PACKAGES=$(echo "$SETUP_JSON" | jq -r '.external_packages | join(" ")')
 
 echo -e "\n${BLUE}=== Setting up Docker ===${NC}"
 
@@ -91,6 +92,9 @@ USER root
 # Install Firebase Admin SDK if requested
 $(if [ "$INSTALL_FIREBASE" = "true" ]; then echo "RUN cd /usr/local/lib/node_modules/n8n && npm install firebase-admin"; fi)
 $(if [ "$INSTALL_FIREBASE" = "true" ]; then echo "ENV FIREBASE_CREDENTIALS=${FIREBASE_CREDENTIALS}"; fi)
+
+# Install external packages if requested
+$(if [ "$EXTERNAL_PACKAGES" != "null" ]; then echo "RUN cd /usr/local/lib/node_modules/n8n && npm install ${EXTERNAL_PACKAGES}"; fi)
 
 # Set to allow all external Node modules by default
 ENV NODE_FUNCTION_ALLOW_EXTERNAL=*

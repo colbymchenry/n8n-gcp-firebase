@@ -89,6 +89,20 @@ if [ "$INSTALL_FIREBASE" == "y" ]; then
     fi
 fi
 
+# Ask about external packages
+echo -e "\n${BLUE}=== External Packages Configuration ===${NC}"
+echo -e "${YELLOW}External packages are npm packages that are not included in the n8n core package.${NC}"
+
+read -p "Do you want to install external packages? (y/n): " INSTALL_EXTERNAL_PACKAGES   
+
+if [ "$INSTALL_EXTERNAL_PACKAGES" == "y" ]; then
+    # Run the setup_npm_packages script
+    if [ -f "./setup_npm_packages.sh" ]; then
+        chmod +x ./setup_npm_packages.sh
+        ./setup_npm_packages.sh "$PROJECT_NAME"
+    fi
+fi
+
 # Run the setup_postgres script
 if [ -f "./setup_postgres.sh" ]; then
     chmod +x ./setup_postgres.sh

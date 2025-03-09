@@ -123,6 +123,11 @@ fi
 N8N_ENCRYPTION_KEY=$(openssl rand -hex 16)
 echo "N8N_ENCRYPTION_KEY: \"$N8N_ENCRYPTION_KEY\"" >> $ENV_FILE
 
+# Save encryption key to a file inside the project directory
+ENCRYPTION_KEY_FILE="$PROJECT_NAME/encryption-key.txt"
+echo "$N8N_ENCRYPTION_KEY" > "$ENCRYPTION_KEY_FILE"
+echo -e "${GREEN}Encryption key saved to $ENCRYPTION_KEY_FILE${NC}"
+
 # Allow external modules
 echo "NODE_FUNCTION_ALLOW_EXTERNAL: \"*\"" >> $ENV_FILE
 
@@ -188,7 +193,8 @@ if [ $? -eq 0 ] && [ ! -z "$SERVICE_URL" ]; then
     
     echo -e "${YELLOW}ENCRYPTION KEY:${NC}"
     echo -e "For serverless n8n, your encryption key is: ${BLUE}$N8N_ENCRYPTION_KEY${NC}"
-    echo -e "Save this key in a secure location. You will need it if you redeploy n8n to decrypt existing credentials."
+    echo -e "This key has been saved to: ${BLUE}$ENCRYPTION_KEY_FILE${NC}"
+    echo -e "Keep this key secure. You will need it if you redeploy n8n to decrypt existing credentials."
 else
     echo -e "${RED}=== Deployment failed! ===${NC}"
     echo -e "To view logs and troubleshoot the error, run:"
