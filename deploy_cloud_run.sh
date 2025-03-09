@@ -71,26 +71,6 @@ echo "# Cloud Run environment variables for n8n" > $ENV_FILE
 # Core n8n settings for Cloud Run
 echo "N8N_PORT: \"8080\"" >> $ENV_FILE
 echo "N8N_LISTEN_ADDRESS: \"0.0.0.0\"" >> $ENV_FILE
-echo "N8N_EDITOR_BASE_URL: \"\"" >> $ENV_FILE
-echo "NODE_OPTIONS: \"--max-old-space-size=4096\"" >> $ENV_FILE
-
-# Performance settings
-echo "N8N_METRICS: \"false\"" >> $ENV_FILE
-echo "N8N_DIAGNOSTICS_ENABLED: \"false\"" >> $ENV_FILE
-echo "N8N_HIRING_BANNER_ENABLED: \"false\"" >> $ENV_FILE
-echo "N8N_VERSION_NOTIFICATIONS_ENABLED: \"false\"" >> $ENV_FILE
-echo "N8N_PERSONALIZATION_ENABLED: \"false\"" >> $ENV_FILE
-echo "N8N_ONBOARDING_FLOW_ENABLED: \"false\"" >> $ENV_FILE
-echo "N8N_TEMPLATES_ENABLED: \"false\"" >> $ENV_FILE
-echo "N8N_DISABLE_PRODUCTION_MAIN_PROCESS: \"false\"" >> $ENV_FILE
-echo "N8N_DISABLE_WEBHOOK_ONBOARDING: \"true\"" >> $ENV_FILE
-echo "N8N_LOG_LEVEL: \"verbose\"" >> $ENV_FILE
-
-if [ "$UPDATE" == "true" ]; then
-    echo "N8N_INSTALLATION_TYPE: \"execution\"" >> $ENV_FILE
-    echo "N8N_SKIP_WEBHOOK_DEREGISTRATION_SHUTDOWN: \"true\"" >> $ENV_FILE
-    echo "N8N_SKIP_SETUP_WIZARD: \"true\"" >> $ENV_FILE
-fi
 
 # Authentication
 echo "N8N_BASIC_AUTH_ACTIVE: \"true\"" >> $ENV_FILE
@@ -99,11 +79,6 @@ echo "N8N_BASIC_AUTH_PASSWORD: \"$N8N_BASIC_AUTH_PASSWORD\"" >> $ENV_FILE
 
 # For Cloud Run, we'll use a placeholder and update it after deployment
 SERVICE_URL="https://$SERVICE_NAME-$(echo $RANDOM | md5sum | head -c 6)-$GCP_REGION.a.run.app"
-
-# Set webhook environment variables (critical for proper operation on Cloud Run)
-echo "N8N_HOST: \"${SERVICE_URL#https://}\"" >> $ENV_FILE
-echo "N8N_PROTOCOL: \"https\"" >> $ENV_FILE
-echo "WEBHOOK_URL: \"$SERVICE_URL\"" >> $ENV_FILE
 
 # IMPORTANT: Prevent webhook deregistration on shutdown for serverless
 echo "N8N_SKIP_WEBHOOK_DEREGISTRATION_SHUTDOWN: \"true\"" >> $ENV_FILE
@@ -167,34 +142,28 @@ if [ $? -eq 0 ] && [ ! -z "$SERVICE_URL" ]; then
     echo -e "Your n8n instance is available at: ${BLUE}$SERVICE_URL${NC}"
     echo -e "Username: ${BLUE}$N8N_BASIC_AUTH_USER${NC}"
     echo -e "Password: ${BLUE}$N8N_BASIC_AUTH_PASSWORD${NC}"
-    
+
     # Update the webhook URLs with the actual Cloud Run URL
     echo -e "${YELLOW}Updating webhook URLs with actual Cloud Run URL...${NC}"
+    
+    # First, add the WEBHOOK_URL to the environment file
+    echo "WEBHOOK_URL: \"$SERVICE_URL\"" >> $ENV_FILE
+    
+    # Then use the file for the update
     gcloud run services update $SERVICE_NAME \
         --region=$GCP_REGION \
-        --set-env-vars="WEBHOOK_URL=$SERVICE_URL,N8N_HOST=${SERVICE_URL#https://}"
+        --env-vars-file=$ENV_FILE
     
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}Webhook URLs updated successfully!${NC}"
     else
         echo -e "${RED}Failed to update webhook URLs. Please update them manually:${NC}"
-        echo -e "gcloud run services update $SERVICE_NAME --region=$GCP_REGION --set-env-vars=\"WEBHOOK_URL=$SERVICE_URL,N8N_HOST=${SERVICE_URL#https://}\""
+        echo -e "gcloud run services update $SERVICE_NAME --region=$GCP_REGION --set-env-vars=\"WEBHOOK_URL=$SERVICE_URL\""
     fi
-    
-    echo -e "${YELLOW}IMPORTANT NOTES FOR WEBHOOKS:${NC}"
-    echo -e "1. Webhooks are configured with:"
-    echo -e "   - WEBHOOK_URL: ${BLUE}$SERVICE_URL${NC}"
-    echo -e "   - N8N_HOST: ${BLUE}${SERVICE_URL#https://}${NC}"
-    echo -e "   - N8N_PROTOCOL: https"
-    echo -e "   - N8N_SKIP_WEBHOOK_DEREGISTRATION_SHUTDOWN: true"
-    echo -e "2. After first login, recreate any webhook workflows to ensure proper registration"
-    echo -e "3. To test a webhook, use: ${BLUE}curl -X POST $SERVICE_URL/webhook/path-to-your-webhook${NC}"
-    echo -e "4. If webhooks don't work, check logs: ${BLUE}gcloud run logs read $SERVICE_NAME --region=$GCP_REGION${NC}"
-    echo -e "5. Verify webhook settings in n8n UI: Settings → Webhook URLs"
     
     echo -e "${YELLOW}ENCRYPTION KEY:${NC}"
     echo -e "For serverless n8n, your encryption key is: ${BLUE}$N8N_ENCRYPTION_KEY${NC}"
-    echo -e "This key has been saved to: ${BLUE}$ENCRYPTION_KEY_FILE${NC}"
+    echo -e "This key has been saved to: ${BLUE}$PROJECT_NAME/setup.json${NC}"
     echo -e "Keep this key secure. You will need it if you redeploy n8n to decrypt existing credentials."
 else
     echo -e "${RED}=== Deployment failed! ===${NC}"

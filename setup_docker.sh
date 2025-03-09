@@ -62,9 +62,6 @@ services:
       - N8N_LISTEN_ADDRESS=0.0.0.0
       - N8N_PROTOCOL=https
       $(if [ "$N8N_ENCRYPTION_KEY" != "null" ]; then echo "- N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}"; fi)
-      $(if [ "$UPDATE" == "true" ]; then echo "- N8N_INSTALLATION_TYPE=execution"; fi)
-      $(if [ "$UPDATE" == "true" ]; then echo "- N8N_SKIP_WEBHOOK_DEREGISTRATION_SHUTDOWN=true"; fi)
-      $(if [ "$UPDATE" == "true" ]; then echo "- N8N_SKIP_SETUP_WIZARD=true"; fi)
       - NODE_ENV=production
       
       # PostgreSQL configuration
@@ -77,11 +74,6 @@ services:
       - DB_POSTGRESDB_SCHEMA=${DB_SCHEMA:-public}
       - DB_POSTGRESDB_SSL_REJECT_UNAUTHORIZED=false
       $(if [ "$INSTALL_FIREBASE" = "true" ]; then echo "- FIREBASE_CREDENTIALS=${FIREBASE_CREDENTIALS}"; fi)
-    volumes:
-      - n8n_data:/home/node/.n8n
-
-volumes:
-  n8n_data:
 EOL
 
 echo -e "\n${GREEN}docker-compose.yml file created.${NC}"
@@ -110,9 +102,7 @@ ENV N8N_PORT=8080
 ENV N8N_LISTEN_ADDRESS=0.0.0.0
 ENV N8N_PROTOCOL=https
 ENV NODE_ENV=production
-$(if [ "$UPDATE" == "true" ]; then echo "ENV N8N_INSTALLATION_TYPE=execution"; fi)
 $(if [ "$UPDATE" == "true" ]; then echo "ENV N8N_SKIP_WEBHOOK_DEREGISTRATION_SHUTDOWN=true"; fi)
-$(if [ "$UPDATE" == "true" ]; then echo "ENV N8N_SKIP_SETUP_WIZARD=true"; fi)
 $(if [ "$N8N_ENCRYPTION_KEY" != "null" ]; then echo "ENV N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}"; fi)
 
 # Expose port 8080 for Cloud Run
