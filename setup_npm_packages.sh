@@ -28,7 +28,7 @@ echo -e "\n${BLUE}=== External Packages Configuration ===${NC}"
 
 # Ask user for packages
 echo -e "${BLUE}Please enter the npm packages you want to install, separated by commas:${NC}"
-echo -e "${YELLOW}Example: react,react-dom,@remix-run/react${NC}"
+echo -e "${YELLOW}Example: pdf-parse,moment${NC}"
 read PACKAGES_INPUT
 
 if [ -z "$PACKAGES_INPUT" ]; then

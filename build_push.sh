@@ -9,6 +9,7 @@ NC='\033[0m' # No Color
 
 # Get project name from command line argument
 PROJECT_NAME=$1
+UPDATE=$2
 
 if [ -z "$PROJECT_NAME" ]; then
     echo -e "${RED}Error: Project name not provided. Please run setup_project.sh first.${NC}"
@@ -100,7 +101,7 @@ cd ..
 # Run the deploy_cloud_run script
 if [ -f "./deploy_cloud_run.sh" ]; then
     chmod +x ./deploy_cloud_run.sh
-    ./deploy_cloud_run.sh "$PROJECT_NAME"
+    ./deploy_cloud_run.sh "$PROJECT_NAME" "$UPDATE"
 else
     echo -e "${RED}Error: deploy_cloud_run.sh script not found.${NC}"
     exit 1

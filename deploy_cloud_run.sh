@@ -9,6 +9,7 @@ NC='\033[0m' # No Color
 
 # Get project name from command line argument
 PROJECT_NAME=$1
+UPDATE=$2
 
 if [ -z "$PROJECT_NAME" ]; then
     echo -e "${RED}Error: Project name not provided. Please run setup_project.sh first.${NC}"
@@ -85,6 +86,12 @@ echo "N8N_DISABLE_PRODUCTION_MAIN_PROCESS: \"false\"" >> $ENV_FILE
 echo "N8N_DISABLE_WEBHOOK_ONBOARDING: \"true\"" >> $ENV_FILE
 echo "N8N_LOG_LEVEL: \"verbose\"" >> $ENV_FILE
 
+if [ "$UPDATE" == "true" ]; then
+    echo "N8N_INSTALLATION_TYPE: \"execution\"" >> $ENV_FILE
+    echo "N8N_SKIP_WEBHOOK_DEREGISTRATION_SHUTDOWN: \"true\"" >> $ENV_FILE
+    echo "N8N_SKIP_SETUP_WIZARD: \"true\"" >> $ENV_FILE
+fi
+
 # Authentication
 echo "N8N_BASIC_AUTH_ACTIVE: \"true\"" >> $ENV_FILE
 echo "N8N_BASIC_AUTH_USER: \"$N8N_BASIC_AUTH_USER\"" >> $ENV_FILE
@@ -119,14 +126,8 @@ if [ "$INSTALL_FIREBASE" = "true" ]; then
     echo "FIREBASE_CREDENTIALS: $FIREBASE_CREDENTIALS" >> $ENV_FILE
 fi
 
-# Generate encryption key if not provided
-N8N_ENCRYPTION_KEY=$(openssl rand -hex 16)
+N8N_ENCRYPTION_KEY=$(echo "$SETUP_JSON" | jq -r '.n8n_encryption_key')
 echo "N8N_ENCRYPTION_KEY: \"$N8N_ENCRYPTION_KEY\"" >> $ENV_FILE
-
-# Save encryption key to a file inside the project directory
-ENCRYPTION_KEY_FILE="$PROJECT_NAME/encryption-key.txt"
-echo "$N8N_ENCRYPTION_KEY" > "$ENCRYPTION_KEY_FILE"
-echo -e "${GREEN}Encryption key saved to $ENCRYPTION_KEY_FILE${NC}"
 
 # Allow external modules
 echo "NODE_FUNCTION_ALLOW_EXTERNAL: \"*\"" >> $ENV_FILE

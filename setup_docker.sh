@@ -9,6 +9,7 @@ NC='\033[0m' # No Color
 
 # Get project name from command line argument
 PROJECT_NAME=$1
+UPDATE=$2
 
 if [ -z "$PROJECT_NAME" ]; then
     echo -e "${RED}Error: Project name not provided. Please run setup_project.sh first.${NC}"
@@ -35,6 +36,7 @@ DB_SCHEMA=$(echo "$SETUP_JSON" | grep -o '"neon_db_schema": "[^"]*' | cut -d'"' 
 INSTALL_FIREBASE=$(echo "$SETUP_JSON" | grep -o '"firebase_admin_sdk": [^,}]*' | cut -d':' -f2 | tr -d ' "')
 FIREBASE_CREDENTIALS=$(echo "$SETUP_JSON" | jq -c '.firebase_credentials')
 EXTERNAL_PACKAGES=$(echo "$SETUP_JSON" | jq -r '.external_packages | join(" ")')
+N8N_ENCRYPTION_KEY=$(echo "$SETUP_JSON" | jq -r '.n8n_encryption_key')
 
 echo -e "\n${BLUE}=== Setting up Docker ===${NC}"
 
@@ -59,6 +61,10 @@ services:
       - N8N_PORT=8080
       - N8N_LISTEN_ADDRESS=0.0.0.0
       - N8N_PROTOCOL=https
+      $(if [ "$N8N_ENCRYPTION_KEY" != "null" ]; then echo "- N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}"; fi)
+      $(if [ "$UPDATE" == "true" ]; then echo "- N8N_INSTALLATION_TYPE=execution"; fi)
+      $(if [ "$UPDATE" == "true" ]; then echo "- N8N_SKIP_WEBHOOK_DEREGISTRATION_SHUTDOWN=true"; fi)
+      $(if [ "$UPDATE" == "true" ]; then echo "- N8N_SKIP_SETUP_WIZARD=true"; fi)
       - NODE_ENV=production
       
       # PostgreSQL configuration
@@ -104,6 +110,10 @@ ENV N8N_PORT=8080
 ENV N8N_LISTEN_ADDRESS=0.0.0.0
 ENV N8N_PROTOCOL=https
 ENV NODE_ENV=production
+$(if [ "$UPDATE" == "true" ]; then echo "ENV N8N_INSTALLATION_TYPE=execution"; fi)
+$(if [ "$UPDATE" == "true" ]; then echo "ENV N8N_SKIP_WEBHOOK_DEREGISTRATION_SHUTDOWN=true"; fi)
+$(if [ "$UPDATE" == "true" ]; then echo "ENV N8N_SKIP_SETUP_WIZARD=true"; fi)
+$(if [ "$N8N_ENCRYPTION_KEY" != "null" ]; then echo "ENV N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}"; fi)
 
 # Expose port 8080 for Cloud Run
 EXPOSE 8080
@@ -121,7 +131,7 @@ echo -e "docker-compose up -d"
 # Run the build_push script
 if [ -f "./build_push.sh" ]; then
     chmod +x ./build_push.sh
-    ./build_push.sh "$PROJECT_NAME"
+    ./build_push.sh "$PROJECT_NAME" "$UPDATE"
 else
     echo -e "${RED}Error: build_push.sh script not found.${NC}"
     exit 1

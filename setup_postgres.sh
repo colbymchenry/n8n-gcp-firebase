@@ -9,6 +9,7 @@ NC='\033[0m' # No Color
 
 # Get project name from command line argument
 PROJECT_NAME=$1
+UPDATE=$2
 
 if [ -z "$PROJECT_NAME" ]; then
     echo -e "${RED}Error: Project name not provided. Please run setup_project.sh first.${NC}"
@@ -109,11 +110,13 @@ SETUP_JSON=$(echo $SETUP_JSON | jq --arg val "$NEON_DB_SCHEMA" '. + {neon_db_sch
 # Save setup.json file
 echo $SETUP_JSON | jq '.' > "$PROJECT_NAME/setup.json"
 
-# Run the setup_postgres script
-if [ -f "./setup_gcp.sh" ]; then
-    chmod +x ./setup_gcp.sh
-    ./setup_gcp.sh "$PROJECT_NAME"
-else
-    echo -e "${RED}Error: setup_gcp.sh script not found.${NC}"
-    exit 1
+if [ "$UPDATE" != "true" ]; then
+    # Run the setup_postgres script
+    if [ -f "./setup_gcp.sh" ]; then
+        chmod +x ./setup_gcp.sh
+        ./setup_gcp.sh "$PROJECT_NAME"
+    else
+        echo -e "${RED}Error: setup_gcp.sh script not found.${NC}"
+        exit 1
+    fi
 fi
