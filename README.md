@@ -5,7 +5,7 @@
  ## Getting Started
  
  This repository provides three main scripts:
- - `setup.sh` - Creates a new n8n project with PostgreSQL and optional Firebase integration
+ - `main.sh` - Creates a new n8n project with PostgreSQL and optional Firebase integration
  - `docker.sh` - Runs n8n locally in Docker
  - `deploy-cloud-run.sh` - Deploys n8n to Google Cloud Run
  
@@ -19,7 +19,7 @@
  
  2. Make all scripts executable:
     ```bash
-    chmod +x setup.sh docker.sh deploy-cloud-run.sh
+    chmod +x main.sh docker.sh deploy-cloud-run.sh ...
     ```
  
  ## Table of Contents
@@ -57,12 +57,12 @@
  
  2. Make the setup script executable:
     ```bash
-    chmod +x setup.sh
+    chmod +x main.sh
     ```
  
  3. Run the setup script with your desired project name:
     ```bash
-    ./setup.sh my-n8n-project
+    ./main.sh my-n8n-project
     ```
  
     The script will prompt you for:
@@ -231,7 +231,7 @@
     - Click "Generate New Private Key"
     - Save the JSON file
  
- 3. During the `setup.sh` script execution, select "Yes" when asked about Firebase integration
+ 3. During the `main.sh` script execution, select "Yes" when asked about Firebase integration
  
  4. Enter the Firebase credentials from your service account JSON:
     - Project ID
